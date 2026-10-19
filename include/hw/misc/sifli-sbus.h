@@ -20,13 +20,15 @@
  * subtracting from every address -- would break SRAM, so the window is
  * checked first.
  *
- * The window is 4 MB, not the whole 32 MB XIP range. PSRAM lives at
+ * The MPI1 window is 4 MB, not the whole 32 MB XIP range. PSRAM lives at
  * 0x6000_0000, which is where the alias of the first flash address lands, and
  * the SDK's linker starts its PSRAM data at 0x6040_0000 (__PSRAM_BASE in the
  * generated link script). Up to there the two do not overlap, which is what
  * makes the alias usable; past it neither the address alone nor anything else
  * a model can see says which of the two memories was meant. Nothing in this
- * tree hands a peripheral a flash address above 4 MB.
+ * tree hands a peripheral an MPI1 flash address above 4 MB. MPI2 NOR uses
+ * the separate CBUS window at 0x1200_0000 (SBUS 0x6200_0000), which does
+ * not overlap the MPI1 PSRAM window and must also be translated.
  *
  * The offset is the per-series HPSYS_MPI_MEM_CBUS_2_SBUS_OFFSET. It has the
  * same value on 52x/56x/57x/58x; a series that changes it would need this
@@ -45,12 +47,19 @@
 #define SIFLI_SBUS_FLASH_BASE   0x60000000u
 #define SIFLI_SBUS_FLASH_SIZE   0x00400000u
 #define SIFLI_SBUS_OFFSET       0x50000000u
+#define SIFLI_SBUS_MPI2_BASE    0x62000000u
+#define SIFLI_SBUS_MPI2_SIZE    0x0e000000u
 
 /* An address a peripheral was given, as an address the CPU could use. */
 static inline uint32_t sifli_sbus_to_cpu_addr(uint32_t addr)
 {
     if (addr >= SIFLI_SBUS_FLASH_BASE &&
         addr < SIFLI_SBUS_FLASH_BASE + SIFLI_SBUS_FLASH_SIZE) {
+        return addr - SIFLI_SBUS_OFFSET;
+    }
+
+    if (addr >= SIFLI_SBUS_MPI2_BASE &&
+        addr < SIFLI_SBUS_MPI2_BASE + SIFLI_SBUS_MPI2_SIZE) {
         return addr - SIFLI_SBUS_OFFSET;
     }
 
