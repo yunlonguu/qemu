@@ -41,6 +41,8 @@
 #define HW_MISC_SIFLI_SBUS_H
 
 #include "qemu/osdep.h"
+#include "system/address-spaces.h"
+#include "system/memory.h"
 
 /* The flash, as the CPU sees it and as a peripheral sees it. */
 #define SIFLI_CBUS_FLASH_BASE   0x10000000u
@@ -64,6 +66,19 @@ static inline uint32_t sifli_sbus_to_cpu_addr(uint32_t addr)
     }
 
     return addr;
+}
+
+/* MPI1 SBUS overlaps NOR-board PSRAM; translate only a mapped ROM alias. */
+static inline uint32_t sifli_sbus_to_mapped_cpu_addr(uint32_t addr)
+{
+    uint32_t translated = sifli_sbus_to_cpu_addr(addr);
+    hwaddr offset, length = 4;
+    MemoryRegion *mr;
+
+    mr = address_space_translate(&address_space_memory, translated,
+                                 &offset, &length, false,
+                                 MEMTXATTRS_UNSPECIFIED);
+    return memory_region_is_rom(mr) ? translated : addr;
 }
 
 #endif /* HW_MISC_SIFLI_SBUS_H */
