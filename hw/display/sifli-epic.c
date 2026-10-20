@@ -35,7 +35,7 @@
  *
  * What is still not here, and is logged rather than silently mis-drawn:
  * mirroring (the HAL supports it, the SDK's own drivers never ask for it),
- * YUV input, dithering, masking (MASK_*), the L8 source format
+ * YUV input, dithering, the L8 source format
  * (which needs the palette), rotation of a
  * co-engine layer, and output straight to the LCD (AHB_CTRL.DESTINATION). A
  * job that uses one of those still completes, so that firmware waiting on it
@@ -224,6 +224,41 @@ static unsigned epic_layer_alpha(SifliEpicState *s, const EpicLayer *l,
         return (px->a * alpha + 127) / 255;
     }
     return px->a;
+}
+
+/* MASK coordinates are canvas coordinates, independent of source transforms. */
+static unsigned epic_mask_alpha(SifliEpicState *s, const EpicLayer *l,
+                                unsigned x, unsigned y, unsigned alpha)
+{
+    uint32_t cfg = s->reg[SIFLI_EPIC_MASK_CFG / 4];
+    uint32_t enable = l->transformable ? EPIC_MASK_CFG_VL_EN :
+                                       EPIC_MASK_CFG_L0_EN;
+    uint32_t tl, br, src, stride;
+    unsigned x0, y0, mx;
+    uint8_t mask;
+
+    if (!(cfg & EPIC_MASK_CFG_ACTIVE) || !(cfg & enable)) {
+        return alpha;
+    }
+    tl = s->reg[SIFLI_EPIC_MASK_TL_POS / 4];
+    br = s->reg[SIFLI_EPIC_MASK_BR_POS / 4];
+    x0 = tl & EPIC_CANVAS_X_Msk;
+    y0 = (tl & EPIC_CANVAS_Y_Msk) >> EPIC_CANVAS_Y_Pos;
+    if (x < x0 || y < y0 || x > (br & EPIC_CANVAS_X_Msk) ||
+        y > ((br & EPIC_CANVAS_Y_Msk) >> EPIC_CANVAS_Y_Pos)) {
+        return 0;
+    }
+    stride = (cfg & EPIC_MASK_CFG_WIDTH_Msk) >> EPIC_MASK_CFG_WIDTH_Pos;
+    src = sifli_sbus_to_mapped_cpu_addr(s->reg[SIFLI_EPIC_MASK_SRC / 4]);
+    mx = x - x0;
+    cpu_physical_memory_read(src + (y - y0) * stride +
+                             ((cfg & EPIC_MASK_CFG_A4) ? mx / 2 : mx),
+                             &mask, 1);
+    if (cfg & EPIC_MASK_CFG_A4) {
+        mask = ((mask >> ((mx & 1) * 4)) & 15) * 17;
+    }
+    return (cfg & EPIC_MASK_CFG_OVERWRITE) ? mask :
+           (alpha * mask + 127) / 255;
 }
 
 static void epic_encode_pixel(uint8_t *p, unsigned o_format, EpicPixel px)
@@ -419,6 +454,7 @@ static void epic_draw_coeng_ezip(SifliEpicState *s, const EpicLayer *l,
             unsigned a = epic_layer_alpha(s, l, s->reg[l->cfg_off / 4],
                                            EPIC_FMT_ARGB8888, &px);
 
+            a = epic_mask_alpha(s, l, x, y, a);
             epic_composite(dst, o_format, EPIC_FMT_ARGB8888, px, a);
         }
     }
@@ -731,6 +767,7 @@ static void epic_draw_coeng_ezip_scaled(SifliEpicState *s, const EpicLayer *l,
             a = epic_layer_alpha(s, l, s->reg[l->cfg_off / 4],
                                            EPIC_FMT_ARGB8888, &px);
 
+            a = epic_mask_alpha(s, l, x, y, a);
             epic_composite(dst, o_format, EPIC_FMT_ARGB8888, px, a);
         }
     }
@@ -846,6 +883,7 @@ static void epic_draw_layer_transformed(SifliEpicState *s, const EpicLayer *l,
             a = epic_layer_alpha(s, l, cfg, format, &px);
 
             dst = canvas + ((y - cy0) * cw + (x - cx0)) * dst_bpp;
+            a = epic_mask_alpha(s, l, x, y, a);
             epic_composite(dst, o_format, format, px, a);
         }
     }
@@ -977,6 +1015,7 @@ static void epic_draw_layer(SifliEpicState *s, const EpicLayer *l,
             }
             a = epic_layer_alpha(s, l, cfg, format, &px);
 
+            a = epic_mask_alpha(s, l, x, y, a);
             epic_composite(dst, o_format, format, px, a);
         }
     }

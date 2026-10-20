@@ -145,6 +145,21 @@ def main():
             command('write 0x20004000 4 0xe00700f8')
             assert draw(0, 0x20004000, 4, flags=1 << 15) == '0xffff00f8'
             print('PASS: exact RGB colour key preserves destination')
+            command('write 0x20004000 4 0x00f800f8')
+            command('write 0x20006000 2 0x00ff')
+            reg(0xc4, 0)  # mask TL
+            reg(0xc8, 1)  # mask BR
+            reg(0xcc, 0x20006000)
+            reg(0xc0, (1 << 28) | (1 << 2) | (2 << 14))
+            assert draw(0, 0x20004000, 4) == '0xffff00f8'
+            print('PASS: independent A8 mask clips L0 coverage')
+            command('write 0x20006000 1 0xf0')
+            reg(0xc0, (1 << 28) | (1 << 2) | (1 << 14) | 1)
+            assert draw(0, 0x20004000, 4) == '0xffff00f8'
+            print('PASS: independent A4 mask uses low nibble first')
+            reg(0xc0, (1 << 28) | (1 << 2) | (1 << 14) | 3)
+            assert draw(0, 0x20004000, 4, 0, 1 << 4) == '0xffff00f8'
+            print('PASS: mask overwrite replaces layer alpha')
         finally:
             connection.close()
             proc.terminate()

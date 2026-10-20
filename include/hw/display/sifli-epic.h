@@ -188,6 +188,14 @@ enum {
 #define EPIC_COENG_CFG_EZIP_CH_SEL_Pos  1
 #define EPIC_COENG_CFG_EZIP_CH_SEL_Msk  (3u << 1)
 
+#define EPIC_MASK_CFG_A4                BIT(0)
+#define EPIC_MASK_CFG_OVERWRITE         BIT(1)
+#define EPIC_MASK_CFG_L0_EN             BIT(2)
+#define EPIC_MASK_CFG_VL_EN             BIT(5)
+#define EPIC_MASK_CFG_WIDTH_Pos         14
+#define EPIC_MASK_CFG_WIDTH_Msk         (0x1fffu << 14)
+#define EPIC_MASK_CFG_ACTIVE            BIT(28)
+
 /*
  * The VL transform registers. VL is the only layer on 52x with them: L0 has
  * no ROT/SCALE block, and L1/L2 do not exist on the part. The HAL computes

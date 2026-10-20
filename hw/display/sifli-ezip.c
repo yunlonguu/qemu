@@ -1013,8 +1013,9 @@ static const Property sifli_ezip_properties[] = {
      * "ezip-tool" property and SIFLI_EZIP_TOOL are the ways in.
      */
     DEFINE_PROP_STRING("tool", SifliEzipState, tool),
+    /* Full-screen EZIP images (e.g. watch dial) exceed 64 KiB compressed. */
     DEFINE_PROP_UINT32("window-bytes", SifliEzipState, window_bytes,
-                       64 * 1024),
+                       1024 * 1024),
 };
 
 static void sifli_ezip_class_init(ObjectClass *klass, const void *data)
